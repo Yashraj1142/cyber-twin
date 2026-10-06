@@ -1,0 +1,103 @@
+{
+  "cyber_twin_context": {
+    "system_objective": "Simulate a real cyber attack-defense cycle against an isolated application/environment using AI Red, Blue, and Purple agents.[cite: 1]",
+    "core_workflow": "Attack -> Detect -> Respond -> Analyze -> Improve -> Attack Again[cite: 1]",
+    "entities_and_relationships": {
+      "Project": {
+        "has_many": [
+          "Application[cite: 1]",
+          "AgentRuns[cite: 1]",
+          "SecurityEvents[cite: 1]",
+          "Incidents[cite: 1]",
+          "AttackPaths[cite: 1]",
+          "Reports[cite: 1]"
+        ]
+      },
+      "Application": {
+        "has_one": "DigitalTwin[cite: 1]"
+      },
+      "DigitalTwin": {
+        "contains": [
+          "API[cite: 1]",
+          "Database[cite: 1]",
+          "Network[cite: 1]",
+          "Services[cite: 1]",
+          "Users[cite: 1]",
+          "SecurityControls[cite: 1]"
+        ],
+        "managed_by": "InfrastructureEngineer[cite: 1]",
+        "accessed_via": "LocalConnector[cite: 1]",
+        "features": [
+          "Snapshot[cite: 1]",
+          "Rollback[cite: 1]",
+          "IsolatedNetwork[cite: 1]"
+        ]
+      },
+      "Agents": {
+        "RedAgent": {
+          "role": "Offensive[cite: 1]",
+          "pipeline": [
+            "Attack planner[cite: 1]",
+            "Attack-path generation[cite: 1]",
+            "Tool selection[cite: 1]",
+            "Controlled execution[cite: 1]",
+            "Result interpretation[cite: 1]"
+          ],
+          "metrics": [
+            "Attack success rate[cite: 1]",
+            "Attack path length[cite: 1]",
+            "Time to objective[cite: 1]",
+            "Successful vulnerability identification[cite: 1]"
+          ]
+        },
+        "BlueAgent": {
+          "role": "Defensive[cite: 1]",
+          "pipeline": [
+            "Telemetry[cite: 1]",
+            "Event collection[cite: 1]",
+            "Detection[cite: 1]",
+            "Correlation[cite: 1]",
+            "Incident investigation[cite: 1]",
+            "Risk scoring[cite: 1]",
+            "Response[cite: 1]"
+          ],
+          "metrics": [
+            "Detection rate[cite: 1]",
+            "False positive rate[cite: 1]",
+            "Mean Time to Detect[cite: 1]",
+            "Mean Time to Respond[cite: 1]"
+          ]
+        },
+        "PurpleAgent": {
+          "role": "Analytical[cite: 1]",
+          "pipeline": [
+            "Correlation[cite: 1]",
+            "Detection gaps[cite: 1]",
+            "Security recommendations[cite: 1]"
+          ],
+          "metrics": [
+            "Detection-gap identification accuracy[cite: 1]",
+            "MITRE technique coverage[cite: 1]",
+            "Recommendation quality[cite: 1]"
+          ]
+        }
+      }
+    },
+    "testing_levels": {
+      "unit_testing": "Each developer tests their own module (Red Agent, Blue Agent, Twin, API tests).[cite: 1]",
+      "integration_testing": "Red -> Twin, Blue -> Telemetry, Purple -> Red + Blue.[cite: 1]",
+      "system_testing": "Entire application flow: User -> Simulation -> Report.[cite: 1]",
+      "security_testing": "Test CYBER-TWIN itself (authentication, authorization, injection, container escape resistance, prompt injection resistance).[cite: 1]"
+    },
+    "mvp_requirements": {
+      "components": [
+        "1 application[cite: 1]",
+        "1 Digital Twin[cite: 1]",
+        "1 Red scenario[cite: 1]",
+        "1 Blue detection[cite: 1]",
+        "1 Purple analysis[cite: 1]",
+        "1 dashboard[cite: 1]"
+      ]
+    }
+  }
+}

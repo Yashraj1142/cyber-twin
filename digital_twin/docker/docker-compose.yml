@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  target_app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: twin_target_app
+    environment:
+      - DATABASE_URL=postgres://user:pass@target_db:5432/twindb
+    networks:
+      - twin_isolated_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      retries: 3
+
+  target_db:
+    image: postgres:13-alpine
+    container_name: twin_target_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: twindb
+    networks:
+      - twin_isolated_net
+
+  local_connector:
+    build: ../connector/
+    container_name: twin_connector
+    environment:
+      - ORCHESTRATOR_API=http://host.docker.internal:8000/api/v1/connectors
+    networks:
+      - twin_isolated_net
+    depends_on:
+      - target_app
+
+networks:
+  twin_isolated_net:
+    driver: bridge
+    internal: true # Strictly isolates the network; Red/Blue agents must attach to this bridge
