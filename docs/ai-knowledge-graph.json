@@ -98,6 +98,88 @@
         "1 Purple analysis[cite: 1]",
         "1 dashboard[cite: 1]"
       ]
+    },
+    "frontend_and_source_onboarding": {
+      "implementation_status": "React/Vite UI integrates with a local ZIP upload and Docker build API; connector path onboarding remains planned",
+      "frontend": {
+        "role": "Dashboard, Attack Graph, Live Events, Security Score, Reports",
+        "implemented_pages": ["login/register", "dashboard", "projects/project overview", "digital twin", "simulations", "red agent", "blue SOC", "purple analysis", "incidents", "vulnerabilities", "MITRE ATT&CK", "reports", "settings"],
+        "source_directory": "frontend/src",
+        "routes_file": "frontend/src/App.jsx",
+        "source_input": ["uploaded ZIP archive with a root Dockerfile (implemented)", "source location resolved by a trusted local connector (planned)"],
+        "shows": ["build progress polling (implemented)", "application/twin start-stop-delete (implemented)", "loopback target endpoint (implemented)", "simulation events and results (currently sample UI)"]
+      },
+      "digital_twin_ui": {
+        "file": "frontend/src/pages/twin/DigitalTwin.jsx",
+        "implemented": ["static topology nodes", "environment selector local state", "sample state and metrics", "local 800ms sync spinner"],
+        "missing": ["source upload", "source path input", "build form/progress", "connector selection", "live twin data and events"]
+      },
+      "integration_status": "NewApplication uses fetch for ZIP upload, build status, and twin lifecycle; the other pages remain presentation-only.",
+      "relationships": {
+        "Frontend": {"submits_to": "BackendAPI", "displays": ["BuildJobStatus", "TwinStatus", "SecurityEvents", "SimulationResults"]},
+        "BackendAPI": {"authorizes_and_validates": ["SourceArchive", "ConnectorSourceReference"], "orchestrates": ["LocalConnector", "DigitalTwinManager"]},
+        "LocalConnector": {"resolves": "SourceDirectoryOnUserMachine", "requests": ["ImageBuild", "TwinLifecycle"]},
+        "DigitalTwinManager": {"builds": ["ApplicationDockerImage", "TrustedProxyImage"], "starts": ["ConstrainedTwinContainer", "ReverseProxyContainer"], "connects_to": ["InternalTwinNetwork", "LoopbackPublishedProxyNetwork"]},
+        "TwinContainer": {"accessible_to": ["AuthorizedRedAgent", "AuthorizedBlueAgent"], "reports": ["Health", "Telemetry"]}
+      },
+      "build_boundary": ["SourceArchive", "ZIP validation and build context", "Per-application DockerImage", "Constrained TwinContainer on internal-only network", "Trusted reverse proxy on internal and host-facing bridge", "Proxy port bound to host loopback"],
+      "archive_requirements": {"dockerfile": "Required at the ZIP root or under one top-level directory; Dockerfile generation from requirements.txt is not implemented.", "default_app_port": 8000, "compressed_limit_mib": 50, "expanded_limit_mib": 200, "max_entries": 5000},
+      "sandbox_policy": ["resource limits", "drop Linux capabilities", "no privileged mode", "secret isolation", "explicit egress policy", "build isolation and timeout", "artifact cleanup", "require non-root user in the uploaded Dockerfile (the manager does not currently force a UID)"],
+      "path_safety": "A local filesystem path is resolved by the local connector; backend paths are never interpreted as user paths."
+    },
+    "backend_api_mapping": {
+      "implementation_status": "MVP routes and SQLite persistence implemented for ZIP upload and Docker twin lifecycle; auth and other API families remain unimplemented",
+      "implemented_routes": ["POST /api/v1/applications (multipart ZIP upload and asynchronous build)", "GET /api/v1/applications", "GET /api/v1/applications/{id}", "POST /api/v1/applications/{id}/start", "POST /api/v1/applications/{id}/stop", "DELETE /api/v1/applications/{id}", "GET /health"],
+      "specified_but_unimplemented_routes": ["/api/v1/twins/*", "/api/v1/connectors/*", "/api/v1/snapshots/*", "/ws/simulations/{id}", "/api/v1/health"],
+      "connector_calls": ["POST /api/v1/connectors/register", "POST /api/v1/connectors/{connector_id}/heartbeat"],
+      "connector_route_status": "no matching backend routes currently exist",
+      "required_flow_apis": ["build cancellation and retry", "health checks beyond container running state", "asset/service discovery", "event/status streaming", "authentication and project authorization"],
+      "required_controls": ["ZIP size and extracted size limits", "zip traversal and symlink rejection", "target on internal-only network", "loopback-only proxy port binding", "runtime resource limits", "local-only API binding", "non-root app user is currently an image/Dockerfile requirement and is not enforced by the manager"],
+      "build_trust_boundary": "Dockerfile build commands execute with access to the host Docker daemon; this local MVP is for trusted source only and is not an untrusted-code builder."
+    },
+    "current_digital_twin_implementation": {
+      "zip_upload_flow": {
+        "frontend_page": "frontend/src/pages/applications/NewApplication.jsx",
+        "backend_routes": ["POST /api/v1/applications", "GET /api/v1/applications/{id}", "POST /api/v1/applications/{id}/start", "POST /api/v1/applications/{id}/stop", "DELETE /api/v1/applications/{id}"],
+        "persistence": "SQLite database at backend/data/cyber_twin.sqlite3; CYBERTWIN_DATA_DIR overrides the data root.",
+        "source_directories": ["backend/data/uploads", "backend/data/builds"],
+        "max_upload_mib": 50,
+        "max_expanded_mib": 200,
+        "max_zip_entries": 5000
+      },
+      "docker_network_topology": {
+        "target_network": "cybertwin-{application_id}, bridge with internal=true",
+        "target_container": "Runs only on the internal target network and receives no host port binding. Runtime limits are 256 MiB memory, 0.5 CPU, 128 PIDs, cap_drop=ALL, no-new-privileges, read-only root, and 32 MiB /tmp tmpfs. The Dockerfile must set a non-root USER; the manager does not force one.",
+        "proxy_network": "cybertwin-proxy-{application_id}, separate bridge with internal=false",
+        "proxy_container": "Nginx joins both bridges; runs as UID/GID 101 with 64 MiB memory, 0.25 CPU, 64 PIDs, cap_drop=ALL, no-new-privileges, read-only root, and tmpfs writable paths. It publishes container port 8080 on a dynamically chosen 127.0.0.1 host port and reverse-proxies HTTP/WebSocket traffic to the target's configured port.",
+        "reason_for_proxy": "Docker may retain HostConfig.PortBindings without activating a published port for a container attached only to an internal bridge.",
+        "returned_url": "http://127.0.0.1:{dynamic_host_port}"
+      },
+      "docker_file_map": {
+        "target_dockerfile": "Supplied by each uploaded ZIP; required at root or inside one top-level directory.",
+        "trusted_proxy_dockerfile": "digital_twin/docker/proxy/Dockerfile",
+        "trusted_proxy_nginx_template": "digital_twin/docker/proxy/default.conf.template",
+        "sample_target_dockerfile": "samples/dockerized-web-app/Dockerfile",
+        "sample_upload_archive": "frontend/public/sample-app.zip",
+        "legacy_unused_files": ["digital_twin/docker/Dockerfile", "digital_twin/docker/docker-compose.yml"]
+      },
+      "runtime_limits": {"target_memory": "256 MiB", "target_cpu": "0.5 CPU", "target_pids": 128, "proxy_memory": "64 MiB", "proxy_cpu": "0.25 CPU", "proxy_pids": 64, "target_read_only_root": true, "drop_capabilities": "ALL", "no_new_privileges": true},
+      "project_prerequisites": {
+        "host_software": ["Python 3.10+ and pip", "Node.js 20.19+ or 22.12+ and npm (Vite 8 requirement)", "Docker Desktop with Linux container engine running; Windows Docker Desktop must be in Linux container mode"],
+        "first_build_network_access": "May be needed to pull target base images, nginx:alpine, and application dependencies.",
+        "backend_dependencies": ["FastAPI", "Uvicorn", "Docker SDK for Python", "python-multipart"],
+        "frontend_dependencies": ["React", "React DOM", "React Router", "Vite", "Lucide icons"],
+        "run_backend": ["python -m pip install -r requirements.txt", "python -m uvicorn backend.main:app --reload"],
+        "run_frontend": ["cd frontend", "npm install", "npm run dev"],
+        "api_base_url": "http://127.0.0.1:8000 (override frontend with VITE_API_BASE_URL)",
+        "frontend_url": "http://localhost:5173"
+      },
+      "demo_observation": "The supplied API MVP responds at /health. Its root / route is undefined and returns a FastAPI Not Found response; this is expected for an API-only archive.",
+      "compose": "Legacy template for target app, Postgres, connector, and an internal bridge; not used by the new ZIP upload flow.",
+      "dockerfile": "Generic Python/uvicorn template expects requirements.txt and main:app; runs as root and lacks container restrictions.",
+      "proxy": "Trusted Nginx sidecar joins the target's internal network and a separate bridge; only the proxy publishes a host port, bound to loopback.",
+      "connector": "Registers and sends heartbeat only; no source, build, command, lifecycle, or status API integration.",
+      "snapshot_manager": "Can inspect/commit/replace a named container, but is not wired to an API and replacement does not preserve original runtime configuration."
     }
   }
 }

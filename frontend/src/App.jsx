@@ -21,6 +21,7 @@ import Vulnerabilities from "./pages/vulnerabilities/Vulnerabilities";
 import MitreAttack from "./pages/mitre/MitreAttack";
 import Reports from "./pages/reports/Reports";
 import Settings from "./pages/settings/Settings";
+import NewApplication from "./pages/applications/NewApplication";
 
 function App() {
   return (
@@ -47,6 +48,11 @@ function App() {
         ========================= */}
 
         <Route element={<AppLayout />}>
+
+          <Route
+            path="/applications/new"
+            element={<NewApplication />}
+          />
 
           <Route
             path="/dashboard"
