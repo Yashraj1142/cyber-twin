@@ -1,0 +1,18 @@
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Environment variables & secrets
+.env
+*.pem
+secrets/
+
+# Node modules for the dashboard
+node_modules/
+
+# Local databases and docker volumes
+*.db
+data/
