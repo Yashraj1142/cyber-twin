@@ -25,6 +25,10 @@ app.add_middleware(
 def health_check():
     return {"status": "online", "service": "cyber-twin-orchestrator"}
 
+@app.get("/")
+def root():
+    return {"message": "CYBER-TWIN API is running", "endpoints": ["/health", "/api/v1/agents/red/start", "/ws/simulations/{id}"]}
+
 @app.post("/api/v1/agents/red/start")
 async def start_red_agent():
     return {"message": "Red Agent execution started", "simulation_id": "sim_001"}
@@ -45,7 +49,25 @@ async def simulation_websocket(websocket: WebSocket, simulation_id: str):
         await websocket.send_text(event)
     await websocket.close()""",
 
-    "README.md": """# CYBER-TWIN MVP Backend\n\nThis archive contains the backend API. The Dockerfile is at the root to comply with UI upload requirements."""
+    "README.md": """# CYBER-TWIN MVP Backend
+
+This archive contains the backend API for the CYBER-TWIN MVP.
+
+## Endpoints
+
+- `GET /` - Root endpoint with API info
+- `GET /health` - Health check
+- `POST /api/v1/agents/red/start` - Start red agent simulation
+- `WS /ws/simulations/{id}` - WebSocket for simulation events
+
+## Docker
+
+Build and run:
+```bash
+docker build -t cyber-twin-api .
+docker run -p 8000:8000 cyber-twin-api
+```
+"""
 }
 
 base_dir = "cyber_twin_api"
@@ -58,7 +80,7 @@ for file_path, content in files.items():
         f.write(content)
 
 # Compress the directory into a zip file
-zip_filename = "cyber_twin_api_root.zip"
+zip_filename = "cyber_twin_api_root1.zip"
 with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
     for root, _, filenames in os.walk(base_dir):
         for file in filenames:

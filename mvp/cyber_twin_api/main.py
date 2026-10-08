@@ -15,6 +15,17 @@ app.add_middleware(
 def health_check():
     return {"status": "online", "service": "cyber-twin-orchestrator"}
 
+@app.get("/")
+def root():
+    return {
+        "message": "CYBER-TWIN API is running",
+        "endpoints": [
+            "/health",
+            "/api/v1/agents/red/start",
+            "/ws/simulations/{id}"
+        ]
+    }
+
 @app.post("/api/v1/agents/red/start")
 async def start_red_agent():
     return {"message": "Red Agent execution started", "simulation_id": "sim_001"}
