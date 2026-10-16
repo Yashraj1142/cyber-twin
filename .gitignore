@@ -1,18 +1,18 @@
-# Python bytecode and virtual environments
+# Python
+.venv/
+venv/
 __pycache__/
 *.py[cod]
-*$py.class
-venv/
-env/
 
-# Environment variables & secrets
+# Testing
+.pytest_cache/
+
+# Environment / secrets
 .env
-*.pem
-secrets/
+.env.*
 
-# Node modules for the dashboard
-node_modules/
-
-# Local databases and docker volumes
-*.db
-data/
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

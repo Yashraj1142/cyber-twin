@@ -2,6 +2,7 @@
   "cyber_twin_context": {
     "system_objective": "Simulate a real cyber attack-defense cycle against an isolated application/environment using AI Red, Blue, and Purple agents.[cite: 1]",
     "core_workflow": "Attack -> Detect -> Respond -> Analyze -> Improve -> Attack Again[cite: 1]",
+
     "entities_and_relationships": {
       "Project": {
         "has_many": [
@@ -13,9 +14,11 @@
           "Reports[cite: 1]"
         ]
       },
+
       "Application": {
         "has_one": "DigitalTwin[cite: 1]"
       },
+
       "DigitalTwin": {
         "contains": [
           "API[cite: 1]",
@@ -31,11 +34,25 @@
           "Snapshot[cite: 1]",
           "Rollback[cite: 1]",
           "IsolatedNetwork[cite: 1]"
-        ]
+        ],
+        "red_agent_interface": {
+          "object": "DigitalTwinTarget",
+          "fields": [
+            "twin_id",
+            "base_url",
+            "auth_endpoint",
+            "username_field",
+            "password_field",
+            "test_username"
+          ],
+          "purpose": "Provides the Red Agent with a configurable authorized Digital Twin endpoint without hardcoding deployment-specific URLs."
+        }
       },
+
       "Agents": {
         "RedAgent": {
           "role": "Offensive[cite: 1]",
+
           "pipeline": [
             "Attack planner[cite: 1]",
             "Attack-path generation[cite: 1]",
@@ -43,13 +60,160 @@
             "Controlled execution[cite: 1]",
             "Result interpretation[cite: 1]"
           ],
+
           "metrics": [
             "Attack success rate[cite: 1]",
             "Attack path length[cite: 1]",
             "Time to objective[cite: 1]",
             "Successful vulnerability identification[cite: 1]"
-          ]
+          ],
+
+          "implementation_status": "MVP implemented and locally tested on dev-parnika",
+
+          "implementation": {
+            "planner": {
+              "file": "agents/red/planner.py",
+              "strategy": "Deterministic MVP planner",
+              "output_contracts": [
+                "AttackPlan",
+                "AttackStep"
+              ],
+              "current_attack_path": [
+                "RED-001 HTTP Reconnaissance",
+                "RED-002 Security Header Assessment",
+                "RED-003 Controlled Authentication Test"
+              ]
+            },
+
+            "tool_selector": {
+              "file": "agents/red/selector.py",
+              "purpose": "Deterministic policy boundary between planning and execution.",
+              "allowlisted_actions": [
+                "http_recon",
+                "security_header_check",
+                "auth_bruteforce"
+              ],
+              "security_property": "Unknown or unapproved actions are rejected before execution."
+            },
+
+            "executor": {
+              "file": "agents/red/executor.py",
+              "purpose": "Executes explicitly registered controlled Red capabilities against the configured Digital Twin.",
+              "capabilities": [
+                "HTTP reconnaissance",
+                "HTTP security-header assessment",
+                "Bounded authentication-resilience test"
+              ],
+              "output_contracts": [
+                "ExecutionResult",
+                "SecurityFinding"
+              ],
+              "safety_controls": [
+                "No arbitrary shell execution",
+                "Explicit tool handler registration",
+                "HTTP/HTTPS target validation",
+                "Bounded authentication attempts",
+                "Authentication test requires DigitalTwinTarget configuration",
+                "Passwords are not included in execution evidence"
+              ]
+            },
+
+            "state_machine": {
+              "file": "agents/core/state_machine.py",
+              "states": [
+                "IDLE",
+                "RECONNAISSANCE",
+                "PLANNING",
+                "SELECTING",
+                "EXECUTING",
+                "ANALYZING",
+                "COMPLETED",
+                "FAILED"
+              ],
+              "loop": "SELECTING -> EXECUTING -> ANALYZING -> SELECTING while attack steps remain",
+              "tracks_transition_history": true
+            },
+
+            "orchestration": {
+              "file": "orchestrator/langgraph_app.py",
+              "framework": "LangGraph",
+              "graph": "START -> Recon -> Plan -> Execute Step -> Analyze -> Continue/Complete -> END",
+              "conditional_loop": "After analysis, execute the next AttackStep if the plan contains remaining steps.",
+              "entry_point": "RedAgentOrchestrator.run(DigitalTwinTarget)"
+            },
+
+            "communication": {
+              "file": "orchestrator/communication.py",
+              "mechanism": "In-memory structured EventBus for MVP",
+              "events": [
+                "agent_started",
+                "recon_started",
+                "recon_completed",
+                "plan_created",
+                "step_started",
+                "step_completed",
+                "step_failed",
+                "finding_created",
+                "agent_completed",
+                "agent_failed"
+              ],
+              "future_direction": "Event contract can later be connected to WebSockets, Redis, persistent storage, Blue Agent, Purple Agent, and dashboard consumers."
+            }
+          },
+
+          "mitre_mapping": {
+            "T1595": {
+              "name": "Active Scanning",
+              "used_by": [
+                "RED-001",
+                "RED-002"
+              ]
+            },
+            "T1110": {
+              "name": "Brute Force",
+              "used_by": [
+                "RED-003"
+              ]
+            }
+          },
+
+          "mvp_scenarios": {
+            "RED-001": {
+              "name": "HTTP Reconnaissance",
+              "action": "http_recon",
+              "status": "Implemented"
+            },
+            "RED-002": {
+              "name": "Security Header Assessment",
+              "action": "security_header_check",
+              "status": "Implemented"
+            },
+            "RED-003": {
+              "name": "Controlled Authentication Test",
+              "action": "auth_bruteforce",
+              "status": "Implemented",
+              "control": "Uses a small bounded test credential fixture against the configured authorized Digital Twin authentication endpoint.",
+              "observed_test_flow": "401 -> 401 -> 200",
+              "finding": "Authentication Resilience Weakness"
+            }
+          },
+
+          "testing": {
+            "framework": "pytest",
+            "component_tests": 5,
+            "component_tests_status": "5 passed",
+            "tested_behaviors": [
+              "Planner creates expected three-step attack plan",
+              "Selector allows approved actions",
+              "Selector rejects unapproved actions",
+              "State machine supports multi-step attack loop",
+              "State machine rejects invalid transitions"
+            ],
+            "local_integration_status": "Passed",
+            "local_integration_target": "Local Flask demo target exposed through configurable HTTP endpoint"
+          }
         },
+
         "BlueAgent": {
           "role": "Defensive[cite: 1]",
           "pipeline": [
@@ -68,6 +232,7 @@
             "Mean Time to Respond[cite: 1]"
           ]
         },
+
         "PurpleAgent": {
           "role": "Analytical[cite: 1]",
           "pipeline": [
@@ -83,12 +248,14 @@
         }
       }
     },
+
     "testing_levels": {
       "unit_testing": "Each developer tests their own module (Red Agent, Blue Agent, Twin, API tests).[cite: 1]",
       "integration_testing": "Red -> Twin, Blue -> Telemetry, Purple -> Red + Blue.[cite: 1]",
       "system_testing": "Entire application flow: User -> Simulation -> Report.[cite: 1]",
       "security_testing": "Test CYBER-TWIN itself (authentication, authorization, injection, container escape resistance, prompt injection resistance).[cite: 1]"
     },
+
     "mvp_requirements": {
       "components": [
         "1 application[cite: 1]",
@@ -98,6 +265,16 @@
         "1 Purple analysis[cite: 1]",
         "1 dashboard[cite: 1]"
       ]
+    },
+
+    "current_integration_status": {
+      "red_agent": "Implemented and locally tested",
+      "red_to_local_test_target": "Working",
+      "red_to_team_docker_digital_twin": "Pending integration validation",
+      "demo_target_docker_definition": "Prepared but not Docker-tested on dev-parnika",
+      "adaptive_llm_attack_planning": "Future work",
+      "blue_red_event_correlation": "Future integration",
+      "purple_correlation": "Future integration"
     }
   }
 }
