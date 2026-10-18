@@ -110,7 +110,7 @@ function NewApplication() {
                     <button type="button" className="secondary-button" onClick={() => fileInput.current?.click()}>
                         <FileArchive size={15} /> {archive ? archive.name : "Choose ZIP archive"}
                     </button>
-                    <p className="onboarding-hint">ZIP limit: 50 MB. The archive must include a Dockerfile. <a href="/sample-app.zip" download>Download the sample app ZIP</a>.</p>
+                    <p className="onboarding-hint">ZIP limit: 200 MB. The archive must include a Dockerfile. <a href="/sample-app.zip" download>Download the sample app ZIP</a>.</p>
 
                     <div className="onboarding-warning">
                         <AlertTriangle size={16} />
@@ -131,6 +131,7 @@ function NewApplication() {
                     </h2>
                     <p>{failed ? application.build_error : ready ? "The application image was built and started in an isolated Docker network." : "The API is building the image and starting the twin. This may take a few minutes."}</p>
                     {ready && application.target_url && <p><Box size={15} /> <a href={application.target_url} target="_blank" rel="noreferrer">{application.target_url}</a></p>}
+                    {ready && application.demo_url && <p><Box size={15} /> Demo login: <a href={application.demo_url} target="_blank" rel="noreferrer">Open isolated demo target</a></p>}
                     {error && <div role="alert" className="onboarding-error">{error}</div>}
                     {ready && application.status === "running" && <button className="secondary-button" onClick={() => lifecycleAction("stop")}>Stop twin</button>}
                     {ready && application.status !== "running" && <button className="primary-button" onClick={() => lifecycleAction("start")}><Play size={14} /> Start twin</button>}

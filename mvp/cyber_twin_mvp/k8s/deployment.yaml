@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cybertwin-mvp
+  labels:
+    app: cybertwin-mvp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cybertwin-mvp
+  template:
+    metadata:
+      labels:
+        app: cybertwin-mvp
+    spec:
+      containers:
+        - name: mvp-api
+          image: cybertwin-mvp:latest
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cybertwin-mvp
+  labels:
+    app: cybertwin-mvp
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+  selector:
+    app: cybertwin-mvp
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cybertwin-mvp-config
+data:
+  APP_PORT: "8000"
+  MAX_UPLOAD_MIB: "200"
+  MAX_FILES: "5000"

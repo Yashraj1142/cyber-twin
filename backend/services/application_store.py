@@ -45,6 +45,9 @@ def initialize():
                 proxy_image_tag TEXT,
                 proxy_container_id TEXT,
                 proxy_network_name TEXT,
+                demo_image_tag TEXT,
+                demo_container_id TEXT,
+                demo_url TEXT,
                 app_port INTEGER NOT NULL,
                 target_url TEXT,
                 created_at TEXT NOT NULL,
@@ -55,6 +58,9 @@ def initialize():
         for name in ("proxy_image_tag", "proxy_container_id", "proxy_network_name"):
             if name not in columns:
                 db.execute(f"ALTER TABLE applications ADD COLUMN {name} TEXT")
+        for name in ("demo_image_tag", "demo_container_id", "demo_url"):
+            if name not in columns:
+                db.execute(f"ALTER TABLE applications ADD COLUMN {name} TEXT")
 
 
 def create_application(record):
@@ -62,6 +68,7 @@ def create_application(record):
         "id", "name", "status", "build_id", "build_status", "build_error",
         "twin_id", "image_tag", "container_id", "network_name",
         "proxy_image_tag", "proxy_container_id", "proxy_network_name", "app_port",
+        "demo_image_tag", "demo_container_id", "demo_url",
         "target_url", "created_at", "updated_at",
     )
     with connect() as db:

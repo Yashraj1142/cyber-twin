@@ -13,9 +13,9 @@ from backend.services import application_store as store
 from backend.services.docker_manager import DockerUnavailable, TwinDockerManager
 
 router = APIRouter()
-MAX_ARCHIVE_BYTES = 50 * 1024 * 1024
+MAX_ARCHIVE_BYTES = 200 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 200 * 1024 * 1024
-MAX_ARCHIVE_FILES = 5000
+MAX_ARCHIVE_FILES = 12000
 SAFE_NAME = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9 ._-]{0,79}$")
 _build_locks = {}
 _lock_guard = threading.Lock()
@@ -28,7 +28,7 @@ def utc_now():
 def public_application(record):
     return {key: record[key] for key in (
         "id", "name", "status", "build_id", "build_status", "build_error",
-        "twin_id", "app_port", "target_url", "created_at", "updated_at",
+        "twin_id", "app_port", "target_url", "demo_url", "created_at", "updated_at",
     )}
 
 
@@ -41,7 +41,7 @@ def safe_extract(archive_path, destination):
     with archive:
         entries = archive.infolist()
         if not entries or len(entries) > MAX_ARCHIVE_FILES:
-            raise ValueError("ZIP must contain between 1 and 5000 files")
+            raise ValueError(f"ZIP must contain between 1 and {MAX_ARCHIVE_FILES} files")
         total_size = 0
         for entry in entries:
             raw_name = entry.filename
@@ -146,7 +146,7 @@ async def create_application(
             while chunk := await archive.read(1024 * 1024):
                 size += len(chunk)
                 if size > MAX_ARCHIVE_BYTES:
-                    raise HTTPException(413, "ZIP upload exceeds the 50 MB limit")
+                    raise HTTPException(413, "ZIP upload exceeds the 200 MB limit")
                 output.write(chunk)
         await archive.close()
         context_path = safe_extract(archive_path, store.BUILD_DIR / application_id)
@@ -166,6 +166,7 @@ async def create_application(
         "build_status": "queued", "build_error": None, "twin_id": None,
         "image_tag": None, "container_id": None, "network_name": None,
         "proxy_image_tag": None, "proxy_container_id": None, "proxy_network_name": None,
+        "demo_image_tag": None, "demo_container_id": None, "demo_url": None,
         "app_port": app_port, "target_url": None, "created_at": now, "updated_at": now,
     })
     background_tasks.add_task(run_build, application_id, build_id, context_path, app_port)
@@ -193,7 +194,9 @@ def stop_application(application_id: str):
     if not record["container_id"]:
         raise HTTPException(409, "Twin container is not available")
     try:
-        container = TwinDockerManager().stop(record["container_id"], record.get("proxy_container_id"))
+        container = TwinDockerManager().stop(
+            record["container_id"], record.get("proxy_container_id"), record.get("demo_container_id")
+        )
     except DockerUnavailable as exc:
         raise HTTPException(503, str(exc)) from exc
     except Exception as exc:
@@ -210,7 +213,9 @@ def start_application(application_id: str):
     if not record["container_id"]:
         raise HTTPException(409, "Twin container is not available")
     try:
-        container, target_url = TwinDockerManager().start(record["container_id"], record.get("proxy_container_id"))
+        container, target_url = TwinDockerManager().start(
+            record["container_id"], record.get("proxy_container_id"), record.get("demo_container_id")
+        )
     except DockerUnavailable as exc:
         raise HTTPException(503, str(exc)) from exc
     except Exception as exc:
@@ -226,12 +231,13 @@ def delete_application(application_id: str):
     record = store.get_application(application_id)
     if not record:
         raise HTTPException(404, "Application not found")
-    if record["container_id"] or record["proxy_container_id"]:
+    if record["container_id"] or record["proxy_container_id"] or record["demo_container_id"]:
         try:
             TwinDockerManager().remove(
                 record["container_id"], record["network_name"], record["image_tag"],
                 record.get("proxy_container_id"), record.get("proxy_network_name"),
-                record.get("proxy_image_tag"),
+                record.get("proxy_image_tag"), record.get("demo_container_id"),
+                record.get("demo_image_tag"),
             )
         except DockerUnavailable as exc:
             raise HTTPException(503, str(exc)) from exc

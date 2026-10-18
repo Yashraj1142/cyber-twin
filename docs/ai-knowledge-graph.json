@@ -123,7 +123,7 @@
         "TwinContainer": {"accessible_to": ["AuthorizedRedAgent", "AuthorizedBlueAgent"], "reports": ["Health", "Telemetry"]}
       },
       "build_boundary": ["SourceArchive", "ZIP validation and build context", "Per-application DockerImage", "Constrained TwinContainer on internal-only network", "Trusted reverse proxy on internal and host-facing bridge", "Proxy port bound to host loopback"],
-      "archive_requirements": {"dockerfile": "Required at the ZIP root or under one top-level directory; Dockerfile generation from requirements.txt is not implemented.", "default_app_port": 8000, "compressed_limit_mib": 50, "expanded_limit_mib": 200, "max_entries": 5000},
+      "archive_requirements": {"dockerfile": "Required at the ZIP root or under one top-level directory; Dockerfile generation from requirements.txt is not implemented.", "optional_demo_dockerfile": "demo/Dockerfile builds a separate target image.", "default_app_port": 8000, "compressed_limit_mib": 200, "expanded_limit_mib": 200, "max_entries": 12000},
       "sandbox_policy": ["resource limits", "drop Linux capabilities", "no privileged mode", "secret isolation", "explicit egress policy", "build isolation and timeout", "artifact cleanup", "require non-root user in the uploaded Dockerfile (the manager does not currently force a UID)"],
       "path_safety": "A local filesystem path is resolved by the local connector; backend paths are never interpreted as user paths."
     },
@@ -143,27 +143,29 @@
         "backend_routes": ["POST /api/v1/applications", "GET /api/v1/applications/{id}", "POST /api/v1/applications/{id}/start", "POST /api/v1/applications/{id}/stop", "DELETE /api/v1/applications/{id}"],
         "persistence": "SQLite database at backend/data/cyber_twin.sqlite3; CYBERTWIN_DATA_DIR overrides the data root.",
         "source_directories": ["backend/data/uploads", "backend/data/builds"],
-        "max_upload_mib": 50,
+        "max_upload_mib": 200,
         "max_expanded_mib": 200,
-        "max_zip_entries": 5000
+        "max_zip_entries": 12000
       },
       "docker_network_topology": {
-        "target_network": "cybertwin-{application_id}, bridge with internal=true",
-        "target_container": "Runs only on the internal target network and receives no host port binding. Runtime limits are 256 MiB memory, 0.5 CPU, 128 PIDs, cap_drop=ALL, no-new-privileges, read-only root, and 32 MiB /tmp tmpfs. The Dockerfile must set a non-root USER; the manager does not force one.",
+        "internal_network": "cybertwin-{application_id}, bridge with internal=true; contains the dashboard/API app and optional demo target service.",
+        "app_container": "Runs only on the internal network with no host port binding. Limits: 256 MiB memory, 0.5 CPU, 128 PIDs, cap_drop=ALL, no-new-privileges, read-only root, and 32 MiB /tmp tmpfs.",
+        "demo_target_container": "Optional separate image built from demo/Dockerfile, named cybertwin-demo-{application_id}, listens on internal port 3000 and has no published host port. Limits: 128 MiB memory, 0.25 CPU, 64 PIDs, cap_drop=ALL, no-new-privileges, read-only root, and 16 MiB /tmp tmpfs.",
         "proxy_network": "cybertwin-proxy-{application_id}, separate bridge with internal=false",
-        "proxy_container": "Nginx joins both bridges; runs as UID/GID 101 with 64 MiB memory, 0.25 CPU, 64 PIDs, cap_drop=ALL, no-new-privileges, read-only root, and tmpfs writable paths. It publishes container port 8080 on a dynamically chosen 127.0.0.1 host port and reverse-proxies HTTP/WebSocket traffic to the target's configured port.",
+        "proxy_container": "Nginx joins both bridges; routes / and /api to the app, /demo/ to the demo target, and WebSocket paths to the app. It runs as UID/GID 101 with 64 MiB memory, 0.25 CPU, 64 PIDs, cap_drop=ALL, no-new-privileges, read-only root, and tmpfs writable paths. It publishes container port 8080 on a dynamically chosen 127.0.0.1 host port.",
         "reason_for_proxy": "Docker may retain HostConfig.PortBindings without activating a published port for a container attached only to an internal bridge.",
         "returned_url": "http://127.0.0.1:{dynamic_host_port}"
       },
       "docker_file_map": {
         "target_dockerfile": "Supplied by each uploaded ZIP; required at root or inside one top-level directory.",
+        "optional_demo_target_dockerfile": "demo/Dockerfile inside the upload ZIP; when present the manager builds a separate demo image and container.",
         "trusted_proxy_dockerfile": "digital_twin/docker/proxy/Dockerfile",
         "trusted_proxy_nginx_template": "digital_twin/docker/proxy/default.conf.template",
         "sample_target_dockerfile": "samples/dockerized-web-app/Dockerfile",
         "sample_upload_archive": "frontend/public/sample-app.zip",
         "legacy_unused_files": ["digital_twin/docker/Dockerfile", "digital_twin/docker/docker-compose.yml"]
       },
-      "runtime_limits": {"target_memory": "256 MiB", "target_cpu": "0.5 CPU", "target_pids": 128, "proxy_memory": "64 MiB", "proxy_cpu": "0.25 CPU", "proxy_pids": 64, "target_read_only_root": true, "drop_capabilities": "ALL", "no_new_privileges": true},
+      "runtime_limits": {"app_memory": "256 MiB", "app_cpu": "0.5 CPU", "app_pids": 128, "demo_memory": "128 MiB", "demo_cpu": "0.25 CPU", "demo_pids": 64, "proxy_memory": "64 MiB", "proxy_cpu": "0.25 CPU", "proxy_pids": 64, "read_only_roots": true, "drop_capabilities": "ALL", "no_new_privileges": true},
       "project_prerequisites": {
         "host_software": ["Python 3.10+ and pip", "Node.js 20.19+ or 22.12+ and npm (Vite 8 requirement)", "Docker Desktop with Linux container engine running; Windows Docker Desktop must be in Linux container mode"],
         "first_build_network_access": "May be needed to pull target base images, nginx:alpine, and application dependencies.",
@@ -174,7 +176,44 @@
         "api_base_url": "http://127.0.0.1:8000 (override frontend with VITE_API_BASE_URL)",
         "frontend_url": "http://localhost:5173"
       },
-      "demo_observation": "The supplied API MVP responds at /health. Its root / route is undefined and returns a FastAPI Not Found response; this is expected for an API-only archive.",
+    "mvp_full_stack_package": {
+      "status": "React dashboard/API and demo login target are separate Docker images, served through one loopback proxy URL.",
+      "source_root": "mvp/cyber_twin_mvp",
+      "upload_archive": "mvp/cyber_twin_fullstack.zip",
+      "archive_generator": "mvp/package_cyber_twin_fullstack.py",
+      "dockerfile": "mvp/cyber_twin_mvp/Dockerfile builds the Node 24 React dashboard and Python/FastAPI app image; mvp/demo/Dockerfile builds the separate Flask login target image.",
+      "backend_static_serving": "backend/main.py serves React build files from /app/static at / and falls back to index.html for UI routes; API and WebSocket routes remain available.",
+      "dashboard_api_routing": "dashboard/src/App.js uses window.location.origin and chooses ws:// or wss:// from the current page protocol; it does not hard-code localhost.",
+      "container_port": 8000,
+      "same_origin_routes": ["/", "/health", "/api/v1/agents/red/start", "/ws/simulations/{simulation_id}", "/demo/"],
+      "demo_target_image": {
+        "dockerfile": "mvp/demo/Dockerfile",
+        "source": "mvp/demo/app.py and mvp/demo/requirements.txt",
+        "container_port": 3000,
+        "login_ui_path": "/demo/",
+        "red_agent_internal_url": "http://cybertwin-demo-{application_id}:3000",
+        "external_port_published": false,
+        "demo_credentials": "cybertwin_test / cybertwin123 (demo fixture only)"
+      },
+      "red_agent_integration": {
+        "specification": "agents/red/test_red_agent.py",
+        "runtime_adapter": "mvp/cyber_twin_mvp/backend/red_agent.py",
+        "planner": "agents/red/planner.py",
+        "selector": "agents/red/selector.py",
+        "executor": "agents/red/executor.py",
+        "state_machine": "agents/core/state_machine.py",
+        "plan": ["http_recon (T1595)", "security_header_check", "auth_bruteforce (T1110; at most three fixed demo credentials)"],
+        "target": "Separate demo target image/container reachable at http://cybertwin-demo-{application_id}:3000 only over the internal Docker network.",
+        "target_ui": "Flask serves a login page and bounded live login-activity feed at the demo container root; the Nginx sidecar routes browser requests at /demo/ to it. Red Agent attempts stream to the dashboard and appear on /demo/ as accepted/rejected events. Target port 3000 is not published.",
+        "safety_boundary": "Executor accepts localhost test URLs or the generated cybertwin-demo-{application_id} hostname on port 3000; unapproved actions such as arbitrary_shell and other hosts are rejected.",
+        "event_transport": "POST /api/v1/agents/red/start returns a simulation id; the browser receives per-step results over /ws/simulations/{id}."
+      },
+      "zip_contents": ["root Dockerfile", "backend/main.py", "backend/red_agent.py", "backend/requirements.txt", "demo/Dockerfile", "demo/app.py", "demo/requirements.txt", "agents/core/state_machine.py", "agents/red/planner.py", "agents/red/selector.py", "agents/red/executor.py", "dashboard package.json and package-lock.json", "dashboard/src", "dashboard/public"],
+      "excluded_from_upload": ["node_modules", "generated React build output", "legacy compose file", "Kubernetes files"],
+      "reupload_note": "Upload the full-stack archive through Add Application to get a new twin URL; the dashboard is at / and the separate login target is at /demo/. Existing twins are unchanged.",
+      "verification": "The app, separate target image, and proxy containers were built and started; dashboard, demo login, health, Red Agent API, and WebSocket were smoke-checked."
+    },
+    "demo_observation": "The original API-only archive responds at /health but has no root page. The full-stack MVP archive now serves the dashboard at / and keeps /health available.",
       "compose": "Legacy template for target app, Postgres, connector, and an internal bridge; not used by the new ZIP upload flow.",
       "dockerfile": "Generic Python/uvicorn template expects requirements.txt and main:app; runs as root and lacks container restrictions.",
       "proxy": "Trusted Nginx sidecar joins the target's internal network and a separate bridge; only the proxy publishes a host port, bound to loopback.",
